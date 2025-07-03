@@ -19,10 +19,6 @@ interface AppContextType {
   authState: AuthState;
   login: (username: string, password: string) => boolean;
   logout: () => void;
-  
-  // UI State
-  loading: boolean;
-  error: string | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -43,8 +39,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [fees, setFees] = useState<FeeStructure[]>(mockFeeData);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('viewer');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
     isAdmin: false,
@@ -122,8 +116,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     authState,
     login,
     logout,
-    loading,
-    error,
   };
 
   return (
