@@ -7,7 +7,18 @@ import Footer from './components/Footer';
 import './index.css';
 
 const AppContent: React.FC = () => {
-  const { viewMode, authState } = useAppContext();
+  const { viewMode, authState, loading } = useAppContext();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-cyan-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Loading Vidya Coaching...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Only show admin interface if user is authenticated and admin
   const showAdminInterface = viewMode === 'admin' && authState.isAuthenticated && authState.isAdmin;

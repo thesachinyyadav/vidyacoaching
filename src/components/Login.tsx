@@ -8,7 +8,7 @@ interface LoginProps {
 
 const Login: React.FC<LoginProps> = ({ onCancel }) => {
   const { login } = useAppContext();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -19,15 +19,16 @@ const Login: React.FC<LoginProps> = ({ onCancel }) => {
     setError('');
     setIsLoading(true);
 
-    // Simulate authentication process
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    const success = login(username.trim(), password);
-    
-    if (success) {
-      onCancel(); // Close login modal
-    } else {
-      setError('Invalid credentials. Please check your username and password.');
+    try {
+      const success = await login(email.trim(), password);
+      
+      if (success) {
+        onCancel(); // Close login modal
+      } else {
+        setError('Invalid credentials. Please check your email and password.');
+      }
+    } catch (error) {
+      setError('An error occurred during login. Please try again.');
     }
     
     setIsLoading(false);
@@ -58,21 +59,21 @@ const Login: React.FC<LoginProps> = ({ onCancel }) => {
         {/* Form */}
         <div className="p-6 sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-            {/* Username Field */}
+            {/* Email Field */}
             <div className="space-y-1 sm:space-y-2">
-              <label className="text-sm font-semibold text-gray-700">Username</label>
+              <label className="text-sm font-semibold text-gray-700">Email</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
                   <User className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                 </div>
                 <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all duration-200 bg-gray-50/50 text-gray-700 placeholder-gray-400 text-sm sm:text-base"
-                  placeholder="Enter username"
+                  placeholder="Enter email address"
                   required
-                  autoComplete="username"
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -122,7 +123,7 @@ const Login: React.FC<LoginProps> = ({ onCancel }) => {
               </button>
               <button
                 type="submit"
-                disabled={isLoading || !username || !password}
+                disabled={isLoading || !email || !password}
                 className="flex-1 px-6 py-4 hero-gradient text-white rounded-xl hover:shadow-lg transition-all duration-200 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               >
                 {isLoading ? (
