@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { GraduationCap, Settings, User, Eye, Sparkles, LogIn, LogOut } from 'lucide-react';
+import { GraduationCap, Settings, User, Eye, Sparkles, LogIn, LogOut, UserPlus } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import Login from './Login';
+import Register from './Register';
 
 const Header: React.FC = () => {
   const { viewMode, setViewMode, currentUser, authState, logout } = useAppContext();
   const [showLogin, setShowLogin] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
 
   const handleAdminAccess = () => {
     if (authState.isAuthenticated && authState.isAdmin) {
@@ -18,6 +20,11 @@ const Header: React.FC = () => {
   const handleLogout = () => {
     logout();
     setViewMode('viewer');
+  };
+
+  const handleRegisterSuccess = () => {
+    setShowRegister(false);
+    setShowLogin(false);
   };
 
   return (
@@ -115,7 +122,23 @@ const Header: React.FC = () => {
       <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary-500 via-secondary-500 to-primary-500 opacity-60"></div>
       
       {/* Login Modal */}
-      {showLogin && <Login onCancel={() => setShowLogin(false)} />}
+      {showLogin && (
+        <Login 
+          onCancel={() => setShowLogin(false)}
+          onRegister={() => {
+            setShowLogin(false);
+            setShowRegister(true);
+          }}
+        />
+      )}
+      
+      {/* Register Modal */}
+      {showRegister && (
+        <Register 
+          onCancel={() => setShowRegister(false)}
+          onSuccess={handleRegisterSuccess}
+        />
+      )}
     </header>
   );
 };

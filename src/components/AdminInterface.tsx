@@ -26,8 +26,9 @@ const AdminInterface: React.FC = () => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
+      currencyDisplay: 'symbol',
       minimumFractionDigits: 0,
-    }).format(amount);
+    }).format(amount).replace('₹', 'Rs. ');
   };
 
   const calculateTotalFee = (data: Partial<FeeStructure>): number => {

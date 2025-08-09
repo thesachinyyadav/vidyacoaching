@@ -3,6 +3,7 @@ import { AppProvider, useAppContext } from './context/AppContext';
 import Header from './components/Header';
 import ViewerInterface from './components/ViewerInterface';
 import AdminInterface from './components/AdminInterface';
+import DatabaseTest from './components/DatabaseTest';
 import Footer from './components/Footer';
 import './index.css';
 
@@ -37,6 +38,8 @@ const AppContent: React.FC = () => {
         <Header />
         <main className="flex-1 py-8 px-4 sm:px-6 lg:px-8">
           <div className="fade-in">
+            <DatabaseTest />
+            <hr className="my-8" />
             {showAdminInterface ? <AdminInterface /> : <ViewerInterface />}
           </div>
         </main>

@@ -1,80 +1,47 @@
 import { supabase } from './supabase';
 import type { FeeStructure, Board, Grade } from '../types';
 
-// Auth Services
-export const authService = {
-  // Sign in with email and password
-  async signIn(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+// Admin Auth Services (Simple - No Supabase Auth)
+export const adminService = {
+  // Admin login with username and password
+  async login(username: string, password: string) {
+    const { data, error } = await supabase.rpc('verify_admin_login', {
+      input_username: username,
+      input_password: password
     });
     
     if (error) throw error;
-    return data;
+    
+    const result = data?.[0];
+    if (result?.is_valid) {
+      return result.user_data;
+    }
+    return null;
   },
 
-  // Sign out
-  async signOut() {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-  },
-
-  // Get current user
-  async getCurrentUser() {
-    const { data: { user } } = await supabase.auth.getUser();
-    return user;
-  },
-
-  // Get user session
-  async getSession() {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session;
-  },
-
-  // Listen to auth changes
-  onAuthStateChange(callback: (event: string, session: any) => void) {
-    return supabase.auth.onAuthStateChange(callback);
-  }
-};
-
-// Profile Services
-export const profileService = {
-  // Get user profile with role
-  async getProfile(userId: string) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+  // Verify admin identity (for password recovery)
+  async verifyIdentity(username: string, email: string) {
+    const { data, error } = await supabase.rpc('verify_admin_identity', {
+      input_username: username,
+      input_email: email
+    });
     
     if (error) throw error;
-    return data;
-  },
-
-  // Create profile (usually called automatically)
-  async createProfile(userId: string, email: string, role: 'admin' | 'viewer' = 'viewer') {
-    const { data, error } = await supabase
-      .from('profiles')
-      .insert([
-        {
-          id: userId,
-          email,
-          username: email,
-          role,
-        }
-      ]);
     
-    if (error) throw error;
-    return data;
+    const result = data?.[0];
+    if (result?.is_valid) {
+      return result.user_data;
+    }
+    return null;
   },
 
-  // Update profile
-  async updateProfile(userId: string, updates: { username?: string; role?: 'admin' | 'viewer' }) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', userId);
+  // Update password (after identity verification)
+  async updatePassword(username: string, email: string, newPassword: string) {
+    const { data, error } = await supabase.rpc('update_admin_password', {
+      input_username: username,
+      input_email: email,
+      new_password: newPassword
+    });
     
     if (error) throw error;
     return data;

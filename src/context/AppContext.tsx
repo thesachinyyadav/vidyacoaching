@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { FeeStructure, User, ViewMode, Board, Grade, AuthState } from '../types';
-import { authService, profileService, feeService } from '../lib/database';
+import type { FeeStructure, User, Board, Grade, AuthState } from '../types';
+import { adminService, feeService } from '../lib/database';
 
 interface AppContextType {
   // Fee Management
@@ -12,16 +12,19 @@ interface AppContextType {
   
   // User & View Management
   currentUser: User | null;
-  viewMode: ViewMode;
-  setViewMode: (mode: ViewMode) => void;
+  viewMode: 'admin' | 'viewer';
+  setViewMode: (mode: 'admin' | 'viewer') => void;
   
   // Authentication
   authState: AuthState;
-  login: (email: string, password: string) => Promise<boolean>;
-  logout: () => Promise<void>;
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => void;
   
   // Loading state
   loading: boolean;
+  
+  // Refresh data
+  refreshFees: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -41,7 +44,7 @@ interface AppProviderProps {
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [fees, setFees] = useState<FeeStructure[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('viewer');
+  const [viewMode, setViewMode] = useState<'admin' | 'viewer'>('viewer');
   const [loading, setLoading] = useState(true);
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
@@ -49,118 +52,124 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     username: null,
   });
 
-  // Initialize app and check auth state
+  // Initialize app - only load fees, no auth check
   useEffect(() => {
+    console.log('🚀 AppContext: Initializing app...');
     initializeApp();
   }, []);
 
   const initializeApp = async () => {
     try {
       setLoading(true);
+      console.log('📡 AppContext: Starting initialization...');
       
-      // Check if user is already logged in
-      const session = await authService.getSession();
-      if (session?.user) {
-        await handleAuthUser(session.user);
-      }
-      
-      // Load fees data
+      // Only load fees data - no auth checking
+      console.log('💰 AppContext: Loading fees...');
       await loadFees();
       
     } catch (error) {
-      console.error('Error initializing app:', error);
+      console.error('❌ AppContext: Error initializing app:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleAuthUser = async (user: any) => {
-    try {
-      const profile = await profileService.getProfile(user.id);
-      
-      const userData: User = {
-        id: user.id,
-        name: profile.username || user.email,
-        email: user.email,
-        role: profile.role,
-        createdAt: new Date(profile.created_at),
-      };
-
-      setCurrentUser(userData);
-      setAuthState({
-        isAuthenticated: true,
-        isAdmin: profile.role === 'admin',
-        username: profile.username || user.email,
-      });
-    } catch (error) {
-      console.error('Error loading user profile:', error);
+      console.log('✅ AppContext: Initialization complete');
     }
   };
 
   const loadFees = async () => {
     try {
+      console.log('📊 AppContext: Fetching fees from database...');
       const feesData = await feeService.getAllFees();
+      console.log('✅ AppContext: Fees loaded:', feesData.length, 'records');
+      console.log('📄 AppContext: Sample fee:', feesData[0]);
       setFees(feesData);
     } catch (error) {
-      console.error('Error loading fees:', error);
+      console.error('❌ AppContext: Error loading fees:', error);
+      // Fallback to empty array on error
+      setFees([]);
     }
   };
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const { user } = await authService.signIn(email, password);
-      if (user) {
-        await handleAuthUser(user);
+      console.log('🔐 AppContext: Attempting admin login for:', username);
+      const userData = await adminService.login(username, password);
+      
+      if (userData) {
+        const user: User = {
+          id: userData.id,
+          username: userData.username,
+          email: userData.email,
+          createdAt: new Date(),
+        };
+        
+        setCurrentUser(user);
+        setAuthState({
+          isAuthenticated: true,
+          isAdmin: true,
+          username: userData.username,
+        });
+        
+        console.log('✅ AppContext: Admin login successful');
         return true;
       }
+      
+      console.log('❌ AppContext: Invalid admin credentials');
       return false;
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('❌ AppContext: Login error:', error);
       return false;
     }
   };
 
-  const logout = async (): Promise<void> => {
-    try {
-      await authService.signOut();
-      setCurrentUser(null);
-      setAuthState({
-        isAuthenticated: false,
-        isAdmin: false,
-        username: null,
-      });
-      setViewMode('viewer');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+  const logout = (): void => {
+    console.log('🚪 AppContext: Logging out admin...');
+    setCurrentUser(null);
+    setAuthState({
+      isAuthenticated: false,
+      isAdmin: false,
+      username: null,
+    });
+    setViewMode('viewer');
+    console.log('✅ AppContext: Logout successful');
+  };
+
+  const refreshFees = async (): Promise<void> => {
+    console.log('🔄 AppContext: Refreshing fees data...');
+    await loadFees();
   };
 
   const addFee = async (feeData: Omit<FeeStructure, 'id' | 'createdAt' | 'updatedAt'>): Promise<void> => {
     try {
+      console.log('➕ AppContext: Adding new fee structure:', feeData);
       const newFee = await feeService.addFee(feeData);
       setFees(prev => [...prev, newFee]);
+      console.log('✅ AppContext: Fee structure added successfully');
     } catch (error) {
-      console.error('Error adding fee:', error);
+      console.error('❌ AppContext: Error adding fee:', error);
       throw error;
     }
   };
 
   const updateFee = async (id: string, feeData: Partial<FeeStructure>): Promise<void> => {
     try {
+      console.log('✏️ AppContext: Updating fee structure:', id, feeData);
       const updatedFee = await feeService.updateFee(id, feeData);
       setFees(prev => prev.map(fee => fee.id === id ? updatedFee : fee));
+      console.log('✅ AppContext: Fee structure updated successfully');
     } catch (error) {
-      console.error('Error updating fee:', error);
+      console.error('❌ AppContext: Error updating fee:', error);
       throw error;
     }
   };
 
   const deleteFee = async (id: string): Promise<void> => {
     try {
+      console.log('🗑️ AppContext: Deleting fee structure:', id);
       await feeService.deleteFee(id);
       setFees(prev => prev.filter(fee => fee.id !== id));
+      console.log('✅ AppContext: Fee structure deleted successfully');
     } catch (error) {
-      console.error('Error deleting fee:', error);
+      console.error('❌ AppContext: Error deleting fee:', error);
       throw error;
     }
   };
@@ -182,6 +191,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     login,
     logout,
     loading,
+    refreshFees,
   };
 
   return (

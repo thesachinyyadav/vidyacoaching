@@ -26,34 +26,9 @@ export interface FeeStructure {
 
 export interface User {
   id: string;
-  name: string;
+  username: string;
   email: string;
-  role: 'admin' | 'viewer';
   createdAt: Date;
-}
-
-export interface AdminAction {
-  id: string;
-  userId: string;
-  action: 'create' | 'update' | 'delete';
-  resourceType: 'fee';
-  resourceId: string;
-  changes: Record<string, any>;
-  timestamp: Date;
-}
-
-export type ViewMode = 'admin' | 'viewer';
-
-export interface FeeDisplayProps {
-  grade: Grade;
-  board: Board;
-  fees: FeeStructure[];
-}
-
-export interface AdminFeeEditProps {
-  fee?: FeeStructure;
-  onSave: (fee: Partial<FeeStructure>) => void;
-  onCancel: () => void;
 }
 
 export interface AuthState {
@@ -65,4 +40,9 @@ export interface AuthState {
 export interface LoginCredentials {
   username: string;
   password: string;
+}
+
+export interface AdminRecoveryData {
+  username: string;
+  email: string;
 }

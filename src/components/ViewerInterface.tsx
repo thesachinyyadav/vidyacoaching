@@ -6,11 +6,20 @@ import { boards, grades } from '../data/mockData';
 import { generateFeeSlipPDF } from '../utils/pdfGenerator';
 
 const ViewerInterface: React.FC = () => {
-  const { getFeeByGradeAndBoard } = useAppContext();
+  const { getFeeByGradeAndBoard, fees } = useAppContext();
   const [selectedBoard, setSelectedBoard] = useState<Board>('State');
   const [selectedGrade, setSelectedGrade] = useState<Grade>('Class 1');
 
   const selectedFee = getFeeByGradeAndBoard(selectedGrade, selectedBoard);
+
+  // Debug logging
+  console.log('ViewerInterface - Current state:', {
+    selectedBoard,
+    selectedGrade,
+    allFeesCount: fees.length,
+    selectedFee,
+    availableFees: fees.map(f => ({ grade: f.grade, board: f.board, amount: f.totalFee }))
+  });
 
   const handleDownloadPDF = () => {
     if (selectedFee) {
