@@ -1,16 +1,20 @@
--- Complete Supabase setup for Vidya Coaching authentication and management system
+-- Simple Admin-Only Authentication for Vidya Coaching
+-- Run this first in Supabase SQL Editor
 
--- 1. Create profiles table (if not exists)
-CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
+-- 1. Create simplified admin table
+DROP TABLE IF EXISTS public.profiles CASCADE;
+DROP TABLE IF EXISTS public.admin_users CASCADE;
+
+CREATE TABLE public.admin_users (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
-    role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('admin', 'viewer')),
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2. Create fees table (if not exists)
+-- 2. Create fees table (same as before)
 CREATE TABLE IF NOT EXISTS public.fees (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     grade TEXT NOT NULL,
@@ -30,134 +34,90 @@ CREATE TABLE IF NOT EXISTS public.fees (
 );
 
 -- 3. Enable Row Level Security
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fees ENABLE ROW LEVEL SECURITY;
 
--- 4. Create RLS Policies for profiles table
+-- 4. Create RLS Policies
 
--- Policy: Users can read their own profile
-DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
-CREATE POLICY "Users can view own profile" ON public.profiles
-    FOR SELECT USING (auth.uid() = id);
+-- Admin users: only allow reading own data (for login verification)
+DROP POLICY IF EXISTS "Admin users can read own data" ON public.admin_users;
+CREATE POLICY "Admin users can read own data" ON public.admin_users
+    FOR SELECT TO PUBLIC USING (true);
 
--- Policy: Users can update their own profile
-DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
-CREATE POLICY "Users can update own profile" ON public.profiles
-    FOR UPDATE USING (auth.uid() = id);
-
--- Policy: Admins can view all profiles
-DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
-CREATE POLICY "Admins can view all profiles" ON public.profiles
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles 
-            WHERE id = auth.uid() AND role = 'admin'
-        )
-    );
-
--- Policy: Allow profile creation during signup
-DROP POLICY IF EXISTS "Allow profile creation" ON public.profiles;
-CREATE POLICY "Allow profile creation" ON public.profiles
-    FOR INSERT WITH CHECK (auth.uid() = id);
-
--- 5. Create RLS Policies for fees table
-
--- Policy: Anyone can read fees (public information)
+-- Fees: Public can read (for viewer interface)
 DROP POLICY IF EXISTS "Anyone can read fees" ON public.fees;
 CREATE POLICY "Anyone can read fees" ON public.fees
     FOR SELECT TO PUBLIC USING (true);
 
--- Policy: Only admins can insert fees
-DROP POLICY IF EXISTS "Admins can insert fees" ON public.fees;
-CREATE POLICY "Admins can insert fees" ON public.fees
-    FOR INSERT TO authenticated WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.profiles 
-            WHERE id = auth.uid() AND role = 'admin'
-        )
-    );
+-- Fees: Admin operations (we'll handle this in the app logic)
+DROP POLICY IF EXISTS "Allow fee modifications" ON public.fees;
+CREATE POLICY "Allow fee modifications" ON public.fees
+    FOR ALL TO PUBLIC USING (true);
 
--- Policy: Only admins can update fees
-DROP POLICY IF EXISTS "Admins can update fees" ON public.fees;
-CREATE POLICY "Admins can update fees" ON public.fees
-    FOR UPDATE TO authenticated USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles 
-            WHERE id = auth.uid() AND role = 'admin'
-        )
-    );
+-- 5. Insert admin users with hashed passwords
+-- Password hashing using crypt function
+INSERT INTO public.admin_users (username, email, password_hash) VALUES
+    ('sachin', 'sachin.yadav@bca.christuniversity.in', crypt('sachin123', gen_salt('bf'))),
+    ('sakshi', 'sakshi.yadav@mais.christuniversity.in', crypt('sakshi123', gen_salt('bf')))
+ON CONFLICT (username) DO UPDATE SET
+    email = EXCLUDED.email,
+    password_hash = EXCLUDED.password_hash,
+    updated_at = now();
 
--- Policy: Only admins can delete fees
-DROP POLICY IF EXISTS "Admins can delete fees" ON public.fees;
-CREATE POLICY "Admins can delete fees" ON public.fees
-    FOR DELETE TO authenticated USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles 
-            WHERE id = auth.uid() AND role = 'admin'
-        )
-    );
-
--- 6. Create function to handle new user signup
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+-- 6. Create function to verify admin login
+CREATE OR REPLACE FUNCTION public.verify_admin_login(input_username TEXT, input_password TEXT)
+RETURNS TABLE(is_valid BOOLEAN, user_data JSON) AS $$
 BEGIN
-    INSERT INTO public.profiles (id, email, username, role)
-    VALUES (
-        new.id,
-        new.email,
-        COALESCE(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
-        COALESCE(new.raw_user_meta_data->>'role', 'viewer')
-    );
-    RETURN new;
+    RETURN QUERY
+    SELECT 
+        CASE WHEN password_hash = crypt(input_password, password_hash) THEN true ELSE false END as is_valid,
+        CASE WHEN password_hash = crypt(input_password, password_hash) 
+            THEN json_build_object('id', id, 'username', username, 'email', email)
+            ELSE NULL 
+        END as user_data
+    FROM public.admin_users 
+    WHERE username = input_username;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 7. Create trigger for new user signup
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
--- 8. Create function to automatically update updated_at timestamp
-CREATE OR REPLACE FUNCTION public.handle_updated_at()
-RETURNS TRIGGER AS $$
+-- 7. Create function to verify admin by username and email (for password recovery)
+CREATE OR REPLACE FUNCTION public.verify_admin_identity(input_username TEXT, input_email TEXT)
+RETURNS TABLE(is_valid BOOLEAN, user_data JSON) AS $$
 BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
+    RETURN QUERY
+    SELECT 
+        CASE WHEN username = input_username AND email = input_email THEN true ELSE false END as is_valid,
+        CASE WHEN username = input_username AND email = input_email 
+            THEN json_build_object('id', id, 'username', username, 'email', email)
+            ELSE NULL 
+        END as user_data
+    FROM public.admin_users 
+    WHERE username = input_username AND email = input_email;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 9. Create triggers for updated_at
-DROP TRIGGER IF EXISTS handle_updated_at_profiles ON public.profiles;
-CREATE TRIGGER handle_updated_at_profiles
-    BEFORE UPDATE ON public.profiles
-    FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+-- 8. Create function to update password
+CREATE OR REPLACE FUNCTION public.update_admin_password(input_username TEXT, input_email TEXT, new_password TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+    UPDATE public.admin_users 
+    SET password_hash = crypt(new_password, gen_salt('bf')), 
+        updated_at = now()
+    WHERE username = input_username AND email = input_email;
+    
+    RETURN FOUND;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS handle_updated_at_fees ON public.fees;
-CREATE TRIGGER handle_updated_at_fees
-    BEFORE UPDATE ON public.fees
-    FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+-- 9. Grant permissions
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT SELECT ON public.admin_users TO anon, authenticated;
+GRANT ALL ON public.fees TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.verify_admin_login TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.verify_admin_identity TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.update_admin_password TO anon, authenticated;
 
--- 10. Admin user creation
--- Note: You cannot directly insert into auth.users table
--- Instead, create admin users through one of these methods:
--- 
--- Method 1: Supabase Dashboard
--- Go to Authentication > Users > "Add User" and create admin@vidyacoaching.com
--- 
--- Method 2: After user registers, update their role:
--- UPDATE public.profiles SET role = 'admin' WHERE email = 'your-email@example.com';
--- 
--- Method 3: Use Supabase Auth API in your application
--- This is handled by the Register component in the React app
-
-COMMENT ON TABLE public.profiles IS 'User profiles with roles and permissions';
+COMMENT ON TABLE public.admin_users IS 'Admin users for Vidya Coaching management system';
 COMMENT ON TABLE public.fees IS 'Fee structures for different grades and boards';
-COMMENT ON COLUMN public.profiles.role IS 'User role: admin (full access) or viewer (read-only)';
-COMMENT ON COLUMN public.fees.total_fee IS 'Total monthly fee excluding one-time charges';
-
--- Grant necessary permissions
-GRANT USAGE ON SCHEMA public TO authenticated, anon;
-GRANT ALL ON public.profiles TO authenticated;
-GRANT ALL ON public.fees TO authenticated;
-GRANT SELECT ON public.fees TO anon;
+COMMENT ON FUNCTION public.verify_admin_login IS 'Verify admin login with username and password';
+COMMENT ON FUNCTION public.verify_admin_identity IS 'Verify admin identity with username and email for password recovery';

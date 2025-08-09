@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
-import { GraduationCap, Settings, User, Eye, Sparkles, LogIn, LogOut, UserPlus } from 'lucide-react';
+import { GraduationCap, Settings, User, Eye, Sparkles, LogIn, LogOut } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import Login from './Login';
-import Register from './Register';
 
 const Header: React.FC = () => {
   const { viewMode, setViewMode, currentUser, authState, logout } = useAppContext();
   const [showLogin, setShowLogin] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
 
   const handleAdminAccess = () => {
     if (authState.isAuthenticated && authState.isAdmin) {
@@ -20,11 +18,6 @@ const Header: React.FC = () => {
   const handleLogout = () => {
     logout();
     setViewMode('viewer');
-  };
-
-  const handleRegisterSuccess = () => {
-    setShowRegister(false);
-    setShowLogin(false);
   };
 
   return (
@@ -96,10 +89,10 @@ const Header: React.FC = () => {
               </div>
               <div className="hidden sm:block">
                 <p className="text-sm font-semibold text-gray-900">
-                  {currentUser?.name || 'Guest User'}
+                  {currentUser?.username || 'Guest User'}
                 </p>
                 <p className="text-xs text-gray-500 capitalize font-medium">
-                  {currentUser?.role || 'viewer'} Mode
+                  {authState.isAuthenticated ? 'admin' : 'viewer'} Mode
                 </p>
               </div>
               
@@ -125,18 +118,6 @@ const Header: React.FC = () => {
       {showLogin && (
         <Login 
           onCancel={() => setShowLogin(false)}
-          onRegister={() => {
-            setShowLogin(false);
-            setShowRegister(true);
-          }}
-        />
-      )}
-      
-      {/* Register Modal */}
-      {showRegister && (
-        <Register 
-          onCancel={() => setShowRegister(false)}
-          onSuccess={handleRegisterSuccess}
         />
       )}
     </header>
